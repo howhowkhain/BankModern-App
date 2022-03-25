@@ -130,6 +130,7 @@ const calcSummaryInterest = function (account) {
   labelSumInterest.textContent = `${totalInterest}€`;
 };
 
+// displays deposits, withdrawals and total interest for each of the deposits
 const displaySummary = function (account) {
   calcSummaryIn(account);
 
@@ -138,6 +139,7 @@ const displaySummary = function (account) {
   calcSummaryInterest(account);
 };
 
+// update account's movements (deposits and withdrawals)
 const displayMovements = function (account, sort = false) {
   containerMovements.innerHTML = '';
 
@@ -153,19 +155,16 @@ const displayMovements = function (account, sort = false) {
   }
   movementsWithDates.forEach((movement, index) => {
     const currentDate = new Date(movement[1]);
-    // console.log(currentDate);
-    const monthDate = String(currentDate.getDate()).padStart(2, 0);
-    const month = String(currentDate.getMonth() + 1).padStart(2, 0);
-    const year = String(currentDate.getFullYear()).padStart(4, 0);
-    const currentDateFormat = `${monthDate}/${month}/${year}`;
-
+    const currentDateFormated = new Intl.DateTimeFormat(account.locale).format(
+      currentDate
+    );
     const operation = movement[0] > 0 ? 'deposit' : 'withdrawal';
     const html = `
           <div class="movements__row">
             <div class="movements__type movements__type--${operation}">${
       index + 1
     } ${operation}</div>
-            <div class="movements__date">${currentDateFormat}</div>
+            <div class="movements__date">${currentDateFormated}</div>
             <div class="movements__value">${movement[0].toFixed(2)}€</div>
         </div>
         `;
@@ -174,7 +173,7 @@ const displayMovements = function (account, sort = false) {
 };
 
 const updateUI = function (account) {
-  displayDateTime();
+  displayDateTime(account);
 
   displayBalance(account);
 
@@ -184,15 +183,11 @@ const updateUI = function (account) {
 };
 
 const transfer = function (account, amount) {
-  const date = new Date();
-  const monthDate = String(date.getDate()).padStart(2, 0);
-  const month = String(date.getMonth() + 1).padStart(2, 0);
-  const year = String(date.getFullYear()).padStart(4, 0);
-  const dateFormated = `${year}-${month}-${monthDate}`;
+  const currentDate = new Date();
   currentAccount.movements.push(-amount);
-  currentAccount.movementsDates.push(dateFormated);
+  currentAccount.movementsDates.push(currentDate.toISOString());
   account.movements.push(amount);
-  account.movementsDates.push(dateFormated);
+  account.movementsDates.push(currentDate.toISOString());
 };
 
 const transferToAccount = function (username, amount) {
@@ -205,9 +200,15 @@ const transferToAccount = function (username, amount) {
   inputTransferAmount.blur();
 };
 
+const processingLoan = function (list, amount) {
+  const date = new Date();
+  list.push(amount);
+  currentAccount.movementsDates.push(date.toISOString());
+};
+
 const approvingLoan = function (list, amount) {
   list.filter(movement => movement > 0).some(deposit => deposit > amount * 0.1)
-    ? list.push(amount)
+    ? processingLoan(list, amount)
     : alert('Loan not approved!');
 };
 
@@ -245,15 +246,19 @@ const startLogOutTimer = function () {
 };
 
 // Get current date and time for the login account
-const displayDateTime = function () {
+const displayDateTime = function (account) {
   const currentDate = new Date();
-  const monthDate = String(currentDate.getDate()).padStart(2, 0);
-  const month = String(currentDate.getMonth() + 1).padStart(2, 0);
-  const year = String(currentDate.getFullYear()).padStart(4, 0);
-  const hour = String(currentDate.getHours()).padStart(2, 0);
-  const minutes = String(currentDate.getMinutes()).padStart(2, 0);
-  const currentDateFormat = `${monthDate}/${month}/${year}, ${hour}:${minutes}`;
-  labelDate.textContent = currentDateFormat;
+  const options = {
+    hour: 'numeric',
+    minute: 'numeric',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  };
+  const dateFormated = new Intl.DateTimeFormat(account.locale, options).format(
+    currentDate
+  );
+  labelDate.textContent = dateFormated;
 };
 
 // removes all previous event listeners attached
