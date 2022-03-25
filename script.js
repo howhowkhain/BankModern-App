@@ -77,7 +77,7 @@ const inputClosePin = document.querySelector('.form__input--pin');
 /////////////////////////////////////////////////
 // CODE
 //////////////////GLOBAL VARIABLES///////////////
-let sort, currentAccount;
+let sort, currentAccount, timer;
 //////////////////FUNCTIONS//////////////////////
 
 const generateUserNames = function (list) {
@@ -183,36 +183,26 @@ const updateUI = function (account) {
   displayMovements(account, sort);
 };
 
-// const sortFunction = function (movementsArray, datesArray, sorted = false) {
-//   if (!sorted) {
-//     console.log(movementsArray, sorted);
-//     containerMovements.innerHTML = '';
-//     const sortedMovements = movementsArray.slice().sort((a, b) => a - b);
-//     const sortedDates = datesArray.slice().sort((a, b) => a - b);
-//     displayMovements(currentAccount);
-//     sort = true;
-//   } else {
-//     containerMovements.innerHTML = '';
-//     displayMovements(movementsArray, datesArray);
-//     sort = false;
-//   }
-// };
+const transfer = function (account, amount) {
+  const date = new Date();
+  const monthDate = String(date.getDate()).padStart(2, 0);
+  const month = String(date.getMonth() + 1).padStart(2, 0);
+  const year = String(date.getFullYear()).padStart(4, 0);
+  const dateFormated = `${year}-${month}-${monthDate}`;
+  currentAccount.movements.push(-amount);
+  currentAccount.movementsDates.push(dateFormated);
+  account.movements.push(amount);
+  account.movementsDates.push(dateFormated);
+};
 
 const transferToAccount = function (username, amount) {
-  const destinationAccount = accounts.find(
-    account => account.username === username
-  );
-  if (destinationAccount) {
-    const date = new Date();
-    const monthDate = String(date.getDate()).padStart(2, 0);
-    const month = String(date.getMonth() + 1).padStart(2, 0);
-    const year = String(date.getFullYear()).padStart(4, 0);
-    const dateFormated = `${year}-${month}-${monthDate}`;
-    currentAccount.movements.push(-amount);
-    currentAccount.movementsDates.push(dateFormated);
-    destinationAccount.movements.push(amount);
-    destinationAccount.movementsDates.push(dateFormated);
-  }
+  const destinationAccount =
+    accounts.find(account => account.username === username) ??
+    alert(`This account doesn't exist!`);
+  destinationAccount && destinationAccount !== currentAccount
+    ? transfer(destinationAccount, amount)
+    : alert(`You can't do transfers into same account!`);
+  inputTransferAmount.blur();
 };
 
 const approvingLoan = function (list, amount) {
@@ -222,12 +212,14 @@ const approvingLoan = function (list, amount) {
 };
 
 const closeAccount = function (inputUser, inputPIN, currentAcc) {
-  if (inputUser === currentAcc.username && inputPIN === currentAcc.pin) {
+  if (
+    inputUser === currentAcc.username &&
+    inputPIN === String(currentAcc.pin)
+  ) {
     const indexAccount = accounts.findIndex(account => account === currentAcc);
-    console.log(indexAccount);
     accounts.splice(indexAccount, 1);
-    console.log(accounts);
     containerApp.style.opacity = 0;
+    labelWelcome.textContent = 'Log in to get started';
   } else {
     alert('This is not your account to delete!');
   }
@@ -249,6 +241,7 @@ const startLogOutTimer = function () {
   };
   tick();
   const timer = setInterval(tick, 1000);
+  return timer;
 };
 
 // Get current date and time for the login account
@@ -272,75 +265,126 @@ const removeEventListeners = function () {
 };
 
 ////////////////BUSSINESS LOGIC////////////////////
+// generate usernames for each of the existent accounts
 generateUserNames(accounts);
-console.log(accounts);
 
+// add event listener for login button
 btnLogin.addEventListener('click', e => {
+  // prevent default behaviour of the form (prevent automatic reloading of the page after submiting the form)
   e.preventDefault();
-  // const totalAccounts = accounts.length;
+  // get the input filelds values
   const userName = inputLoginUsername.value;
-  const userPIN = +inputLoginPin.value;
-  // console.log(userName);
-  // console.log(userPIN);
-  // console.log(accounts);
-  // console.log(count);
+  const userPIN = inputLoginPin.value;
+  // check for any username and PIN inputs
+  if (!userName || userPIN === '') {
+    alert('Use a username and a valid PIN!');
+    inputLoginUsername.value = '';
+    inputLoginPin.value = '';
+    return;
+  }
+  // find the account with the specified username
   currentAccount =
     accounts.find(account => account.username === userName) ?? noAccount();
   console.log(currentAccount);
-  if (currentAccount && currentAccount.pin === userPIN) {
+  if (currentAccount) {
+    // if account with the specified username exist check for PIN matching
+    if (!(String(currentAccount.pin) === userPIN)) {
+      alert('Incorrect PIN. Try again!');
+      inputLoginUsername.value = '';
+      inputLoginPin.value = '';
+      return;
+    }
+    // flag for sorting the account's movements (default set to false - not sorted)
     sort = false;
-
+    // make the account visible
     containerApp.style.opacity = 1;
+    // update the account's welcome message
     labelWelcome.textContent = `Welcome back, ${currentAccount.owner
       .split(' ')
       .slice(0, 1)}`;
+    // clear the login input fields
     inputLoginUsername.value = '';
-    // inputLoginUsername.blur();
     inputLoginPin.value = '';
+    // remove focus form the PIN login input
     inputLoginPin.blur();
-
+    // update UI with all account's data
     updateUI(currentAccount);
-
-    startLogOutTimer();
+    // reset timer if already running
+    if (timer) clearInterval(timer);
+    // start timer
+    timer = startLogOutTimer();
   }
 });
 
+// add event listener for sorting button
 btnSort.addEventListener('click', function () {
   sort = !sort;
   displayMovements(currentAccount, sort);
 });
 
+// adding event listener for transfer button
 btnTransfer.addEventListener('click', e => {
   e.preventDefault();
   const transferTo = inputTransferTo.value;
   const transferAmmount = +inputTransferAmount.value;
-
+  // check for username input field and for a valid amount's value
+  if (!transferTo || !transferAmmount || !(transferAmmount > 0)) {
+    alert('Use a username and a valid amount for tranfer operation!');
+    inputTransferTo.value = '';
+    inputTransferAmount.value = '';
+    return;
+  }
+  // tranfer the sum to the account of which username was used
   transferToAccount(transferTo, transferAmmount);
-
-  displayMovements(currentAccount, sort);
-
+  // update the user's UI account
+  updateUI(currentAccount);
+  // clear the input fields
   inputTransferTo.value = '';
   inputTransferAmount.value = '';
+  // reset timer if already running
+  if (timer) clearInterval(timer);
+  // start timer
+  timer = startLogOutTimer();
 });
 
+// adding event listener for requesting loan button
 btnLoan.addEventListener('click', e => {
   e.preventDefault();
   const loanAmount = +inputLoanAmount.value;
-
+  // check for a valid amount input field
+  if (!loanAmount || !(loanAmount > 0)) {
+    alert('Insert a valid loan amount!');
+    inputLoanAmount.value = '';
+    return;
+  }
+  // loan approving operation
   approvingLoan(currentAccount.movements, loanAmount);
-
-  displayMovements(currentAccount, sort);
-
+  // update the user's UI account
+  updateUI(currentAccount);
+  // clear the input fields
   inputLoanAmount.value = '';
+  // reset timer if already running
+  if (timer) clearInterval(timer);
+  // start timer
+  timer = startLogOutTimer();
 });
 
 btnClose.addEventListener('click', e => {
   e.preventDefault();
   const inputUser = inputCloseUsername.value;
-  const inputPIN = +inputClosePin.value;
-
+  const inputPIN = inputClosePin.value;
+  // check for username and PIN input fields
+  if (!inputUser || inputPIN === '') {
+    alert('Insert a username and a valid PIN to close your account!');
+    inputCloseUsername.value = '';
+    inputClosePin.value = '';
+    return;
+  }
+  // closing user's account
   closeAccount(inputUser, inputPIN, currentAccount);
-
+  // clear the input fields
   inputCloseUsername.value = '';
   inputClosePin.value = '';
+  // reset timer if already running
+  if (timer) clearInterval(timer);
 });
