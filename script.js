@@ -79,7 +79,7 @@ const inputClosePin = document.querySelector('.form__input--pin');
 //////////////////GLOBAL VARIABLES///////////////
 let sort, currentAccount, timer;
 //////////////////FUNCTIONS//////////////////////
-
+// generates usernames for each of the accounts
 const generateUserNames = function (list) {
   list.forEach(account => {
     account.username = account.owner
@@ -97,11 +97,20 @@ const noAccount = function () {
   inputLoginPin.blur();
 };
 
+const currencyFormat = function (account, number) {
+  const formatOptions = { style: 'currency', currency: account.currency };
+  const currencyFormated = new Intl.NumberFormat(
+    account.locale,
+    formatOptions
+  ).format(number);
+  return currencyFormated;
+};
+
 const displayBalance = function (account) {
-  const balance = account.movements
+  account.balance = account.movements
     .reduce((prevValue, currValue) => prevValue + currValue, 0)
     .toFixed(2);
-  labelBalance.textContent = `${balance}€`;
+  labelBalance.textContent = currencyFormat(account, account.balance);
 };
 
 const calcSummaryIn = function (account) {
@@ -109,7 +118,7 @@ const calcSummaryIn = function (account) {
     .filter(movement => movement > 0)
     .reduce((prevValue, currValue) => prevValue + currValue, 0)
     .toFixed(2);
-  labelSumIn.textContent = `${totalIN}€`;
+  labelSumIn.textContent = currencyFormat(account, totalIN);
 };
 
 const calcSummaryOut = function (account) {
@@ -118,7 +127,7 @@ const calcSummaryOut = function (account) {
     .map(movement => Math.abs(movement))
     .reduce((prevValue, currValue) => prevValue + currValue, 0)
     .toFixed(2);
-  labelSumOut.textContent = `${totalOut}€`;
+  labelSumOut.textContent = currencyFormat(account, totalOut);
 };
 
 const calcSummaryInterest = function (account) {
@@ -127,45 +136,65 @@ const calcSummaryInterest = function (account) {
     .map(deposit => (deposit * account.interestRate) / 100)
     .reduce((prevValue, currValue) => prevValue + currValue, 0)
     .toFixed(2);
-  labelSumInterest.textContent = `${totalInterest}€`;
+  labelSumInterest.textContent = currencyFormat(account, totalInterest);
 };
 
-// displays deposits, withdrawals and total interest for each of the deposits
+// displays summary for deposits, withdrawals and total interest calculated for each of the deposits
 const displaySummary = function (account) {
   calcSummaryIn(account);
-
   calcSummaryOut(account);
-
   calcSummaryInterest(account);
+};
+
+// format movement date
+const formatMovementDates = function (dateObject, locale) {
+  // calculate the difference of the days passed
+  const calculateDaysPast = dateObject =>
+    Math.trunc(Math.abs((new Date() - dateObject) / (24 * 60 * 60 * 1000)));
+
+  const daysPast = calculateDaysPast(dateObject);
+
+  if (daysPast === 0) return 'Today';
+  if (daysPast === 1) return 'Yesterday';
+  if (daysPast < 7) return `${daysPast} day ago`;
+  else {
+    return new Intl.DateTimeFormat(locale).format(dateObject);
+  }
 };
 
 // update account's movements (deposits and withdrawals)
 const displayMovements = function (account, sort = false) {
   containerMovements.innerHTML = '';
-
-  const datesArrayFormated = account.movementsDates.map(
-    date => date.split('T')[0]
+  // create an array with only the dates (not time included) from the movementsDated array
+  const datesWithoutTime = account.movementsDates.map(
+    dateTime => dateTime.split('T')[0]
   );
+  // create an array where each movement is mapped to its corresponding date (no time included)
   let movementsWithDates = account.movements.map((movement, index) => [
     movement,
-    datesArrayFormated[index],
+    datesWithoutTime[index],
   ]);
+  // sort the movements in ascending order if the sort button was clicked
   if (sort) {
     movementsWithDates = movementsWithDates.sort((a, b) => a[0] - b[0]);
   }
   movementsWithDates.forEach((movement, index) => {
-    const currentDate = new Date(movement[1]);
-    const currentDateFormated = new Intl.DateTimeFormat(account.locale).format(
-      currentDate
-    );
+    // converting the corresponding date&time string of the movement into a date&time object
+    const movementDate = new Date(movement[1]);
+    // format the date&time object as per each client particulars (locales)
+    const date = formatMovementDates(movementDate, account.locale);
+    // establish if the movement is a deposit(positive value) or a withdrawal(negative value)
     const operation = movement[0] > 0 ? 'deposit' : 'withdrawal';
     const html = `
           <div class="movements__row">
             <div class="movements__type movements__type--${operation}">${
       index + 1
     } ${operation}</div>
-            <div class="movements__date">${currentDateFormated}</div>
-            <div class="movements__value">${movement[0].toFixed(2)}€</div>
+            <div class="movements__date">${date}</div>
+            <div class="movements__value">${currencyFormat(
+              account,
+              movement[0]
+            )}</div>
         </div>
         `;
     containerMovements.insertAdjacentHTML('afterbegin', html);
@@ -173,15 +202,17 @@ const displayMovements = function (account, sort = false) {
 };
 
 const updateUI = function (account) {
+  //display login date and time
   displayDateTime(account);
-
+  //display account's total ballance
   displayBalance(account);
-
+  //display account's summary
   displaySummary(account);
-
+  //display account's movements
   displayMovements(account, sort);
 };
 
+//executes transfer operations between accounts
 const transfer = function (account, amount) {
   const currentDate = new Date();
   currentAccount.movements.push(-amount);
@@ -190,14 +221,21 @@ const transfer = function (account, amount) {
   account.movementsDates.push(currentDate.toISOString());
 };
 
-const transferToAccount = function (username, amount) {
+//function in charge for validation of transfer operations
+const transferToAccount = function (fromAccount, toUsername, amount) {
+  const currentBallance = +fromAccount.balance;
   const destinationAccount =
-    accounts.find(account => account.username === username) ??
+    accounts.find(account => account.username === toUsername) ??
     alert(`This account doesn't exist!`);
-  destinationAccount && destinationAccount !== currentAccount
-    ? transfer(destinationAccount, amount)
-    : alert(`You can't do transfers into same account!`);
-  inputTransferAmount.blur();
+  if (destinationAccount) {
+    if (amount > currentBallance) {
+      alert(`Not enough ballance! Your current ballance is ${currentBallance}`);
+      return;
+    }
+    destinationAccount !== currentAccount
+      ? transfer(destinationAccount, amount)
+      : alert(`You can't do transfers into same account!`);
+  }
 };
 
 const processingLoan = function (list, amount) {
@@ -252,7 +290,7 @@ const displayDateTime = function (account) {
     hour: 'numeric',
     minute: 'numeric',
     day: 'numeric',
-    month: 'short',
+    month: 'numeric',
     year: 'numeric',
   };
   const dateFormated = new Intl.DateTimeFormat(account.locale, options).format(
@@ -261,13 +299,7 @@ const displayDateTime = function (account) {
   labelDate.textContent = dateFormated;
 };
 
-// removes all previous event listeners attached
-const removeEventListeners = function () {
-  btnSort.replaceWith(btnSort.cloneNode(true));
-  btnTransfer.replaceWith(btnTransfer.cloneNode(true));
-  btnLoan.replaceWith(btnLoan.cloneNode(true));
-  btnClose.replaceWith(btnClose.cloneNode(true));
-};
+const checkDate = function () {};
 
 ////////////////BUSSINESS LOGIC////////////////////
 // generate usernames for each of the existent accounts
@@ -330,31 +362,35 @@ btnSort.addEventListener('click', function () {
 // adding event listener for transfer button
 btnTransfer.addEventListener('click', e => {
   e.preventDefault();
+  // reset timer if already running
+  if (timer) clearInterval(timer);
+  // start timer
+  timer = startLogOutTimer();
+  // get input values
   const transferTo = inputTransferTo.value;
   const transferAmmount = +inputTransferAmount.value;
   // check for username input field and for a valid amount's value
   if (!transferTo || !transferAmmount || !(transferAmmount > 0)) {
     alert('Use a username and a valid amount for tranfer operation!');
-    inputTransferTo.value = '';
-    inputTransferAmount.value = '';
+    inputTransferTo.value = inputTransferAmount.value = '';
     return;
   }
   // tranfer the sum to the account of which username was used
-  transferToAccount(transferTo, transferAmmount);
+  transferToAccount(currentAccount, transferTo, transferAmmount);
   // update the user's UI account
   updateUI(currentAccount);
   // clear the input fields
-  inputTransferTo.value = '';
-  inputTransferAmount.value = '';
-  // reset timer if already running
-  if (timer) clearInterval(timer);
-  // start timer
-  timer = startLogOutTimer();
+  inputTransferTo.value = inputTransferAmount.value = '';
 });
 
 // adding event listener for requesting loan button
 btnLoan.addEventListener('click', e => {
   e.preventDefault();
+  // reset timer if already running
+  if (timer) clearInterval(timer);
+  // start timer
+  timer = startLogOutTimer();
+  // get input values
   const loanAmount = +inputLoanAmount.value;
   // check for a valid amount input field
   if (!loanAmount || !(loanAmount > 0)) {
@@ -368,10 +404,6 @@ btnLoan.addEventListener('click', e => {
   updateUI(currentAccount);
   // clear the input fields
   inputLoanAmount.value = '';
-  // reset timer if already running
-  if (timer) clearInterval(timer);
-  // start timer
-  timer = startLogOutTimer();
 });
 
 btnClose.addEventListener('click', e => {
@@ -381,15 +413,13 @@ btnClose.addEventListener('click', e => {
   // check for username and PIN input fields
   if (!inputUser || inputPIN === '') {
     alert('Insert a username and a valid PIN to close your account!');
-    inputCloseUsername.value = '';
-    inputClosePin.value = '';
+    inputCloseUsername.value = inputClosePin.value = '';
     return;
   }
   // closing user's account
   closeAccount(inputUser, inputPIN, currentAccount);
   // clear the input fields
-  inputCloseUsername.value = '';
-  inputClosePin.value = '';
+  inputCloseUsername.value = inputClosePin.value = '';
   // reset timer if already running
   if (timer) clearInterval(timer);
 });
