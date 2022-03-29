@@ -91,9 +91,7 @@ const generateUserNames = function (list) {
 
 const noAccount = function () {
   alert(`This account doesn't exist!`);
-  inputLoginUsername.value = '';
-  inputLoginUsername.blur();
-  inputLoginPin.value = '';
+  inputLoginUsername.value = inputLoginPin.value = '';
   inputLoginPin.blur();
 };
 
@@ -229,7 +227,12 @@ const transferToAccount = function (fromAccount, toUsername, amount) {
     alert(`This account doesn't exist!`);
   if (destinationAccount) {
     if (amount > currentBallance) {
-      alert(`Not enough ballance! Your current ballance is ${currentBallance}`);
+      alert(
+        `Not enough ballance! \nYour current ballance is ${currencyFormat(
+          currentAccount,
+          currentBallance
+        )}.`
+      );
       return;
     }
     destinationAccount !== currentAccount
@@ -340,8 +343,7 @@ btnLogin.addEventListener('click', e => {
       .split(' ')
       .slice(0, 1)}`;
     // clear the login input fields
-    inputLoginUsername.value = '';
-    inputLoginPin.value = '';
+    inputLoginUsername.value = inputLoginPin.value = '';
     // remove focus form the PIN login input
     inputLoginPin.blur();
     // update UI with all account's data
@@ -381,6 +383,7 @@ btnTransfer.addEventListener('click', e => {
   updateUI(currentAccount);
   // clear the input fields
   inputTransferTo.value = inputTransferAmount.value = '';
+  inputTransferAmount.blur();
 });
 
 // adding event listener for requesting loan button
@@ -404,6 +407,7 @@ btnLoan.addEventListener('click', e => {
   updateUI(currentAccount);
   // clear the input fields
   inputLoanAmount.value = '';
+  inputLoanAmount.blur();
 });
 
 btnClose.addEventListener('click', e => {
